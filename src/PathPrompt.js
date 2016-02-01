@@ -106,6 +106,9 @@ export default class PathPrompt extends BasePrompt {
    * @param state
    */
   onError(state) {
+    // Keep the state
+    this.rl.line = this.shell.getInputPath(true);
+
     this.resetCursor();
     this.renderError(state.isValid);
   }
