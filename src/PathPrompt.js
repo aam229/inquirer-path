@@ -152,7 +152,6 @@ export default class PathPrompt extends BasePrompt {
     this.finished = true;
     // Put the listeners back on to SIGINT
     this.originalSIGINTListeners.forEach((listener) => {
-      console.error(this.rl);
       this.rl.addListener('SIGINT', listener);
     });
 
