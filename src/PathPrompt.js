@@ -97,13 +97,12 @@ export default class PathPrompt extends BasePrompt {
         this.resetCursor();
         break;
       case ENTER_KEY:
-        if (this.state.selectionActive) {
-          this.shell.setInputPath(this.shell.getSelectedPath());
-          this.state.selectionActive = false;
-        } else if (!this.shell.hasSelectedPath()) {
+        if (!this.shell.hasSelectedPath()) {
           // Let the onSubmit handler take care of that.
           return;
         }
+        this.shell.setInputPath(this.shell.getSelectedPath());
+        this.state.selectionActive = false;
         this.resetCursor();
         break;
       default:

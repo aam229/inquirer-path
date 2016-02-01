@@ -3,7 +3,7 @@
   "description": "An Inquirer extension to support path questions",
   "author": "Alexandre Massonneau <aam229@cornell.edu> (http://github.com/aam229)",
   "license": "MIT",
-  "version": "1.0.0-alpha4",
+  "version": "1.0.0-alpha5",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/aam229/inquirer-path.git"
