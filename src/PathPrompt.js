@@ -2,7 +2,6 @@ import path from 'path';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import readline from 'readline';
-import rx from 'rx-lite';
 import runAsync from 'run-async';
 import BasePrompt from 'inquirer/lib/prompts/base';
 
@@ -35,7 +34,7 @@ export default class PathPrompt extends BasePrompt {
     /** @private */
     this.cancelCount = 0;
     /** @private */
-    this.originalListeners = {SIGINT: this.rl.listeners('SIGINT')};
+    this.originalListeners = { SIGINT: this.rl.listeners('SIGINT') };
     /** @private */
     this.listeners = [];
     /** @private */
@@ -80,7 +79,7 @@ export default class PathPrompt extends BasePrompt {
    * @param {Object} key - The information about the key pressed
    */
   onKeyPress(value, key = {}) {
-    if(key.ctrl){
+    if (key.ctrl) {
       return;
     }
     this.cancelCount = 0;
@@ -123,7 +122,7 @@ export default class PathPrompt extends BasePrompt {
    */
   onSubmit() {
     // Let the onKeypress handler take care of that one.
-    if(this.shell.hasSelectedPath()){
+    if (this.shell.hasSelectedPath()) {
       return;
     }
     this.cancelCount = 0;
@@ -308,11 +307,11 @@ export default class PathPrompt extends BasePrompt {
    * Unregister the local event handlers and reregister the ones that were
    * removed.
    */
-  cleanup(){
+  cleanup() {
     Object.keys(this.originalListeners).forEach((eventName) => {
       this.originalListeners[eventName].forEach((listener) => {
         this.rl.addListener(eventName, listener);
-      })
+      });
     });
     this.rl.removeListener('line', this.onSubmit);
     this.rl.removeListener('SIGINT', this.onCancel);
