@@ -52,6 +52,7 @@ export default class PathPrompt extends BasePrompt {
     /** @private */
     this.done = cb;
 
+    // TODO: This rx logic seems overly complicated for no good reason. Look into it.
     const submit = rx.Observable.fromEvent(this.rl, 'line')
       // Submit only if there is no active directoryChildren
       .filter(() => !this.shell.hasSelectedPath())
@@ -72,7 +73,7 @@ export default class PathPrompt extends BasePrompt {
 
     const error = validation
       .filter((state) => state.isValid !== true)
-      .takeUntil(success);
+      .takeWhile(() => !this.finished);
 
     success.forEach((state) => this.onSuccess(state));
     error.forEach((state) => this.onError(state));
