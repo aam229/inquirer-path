@@ -195,6 +195,7 @@ export default class ShellPathAutocomplete {
     // TODO: Does this really belong here? It could be part of the prompt itself.
     if (this.potentialPaths.length === 0) {
       this.selectedPotentialPathIndex = -1;
+      return null;
     }
     const position = this.selectedPotentialPathIndex + ((forward) ? 1 : -1);
     const boundedPosition = position % this.potentialPaths.length;

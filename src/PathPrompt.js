@@ -187,11 +187,12 @@ export default class PathPrompt extends BasePrompt {
         this.resetCursor();
         break;
       default:
+        this.state.selectionActive = false;
         this.shell.setInputPath(this.rl.line);
         break;
     }
     // Avoid polluting the line value with whatever new characters the action key added to the line
-    this.rl.line = this.shell.getInputPath();
+    this.rl.line = this.shell.getInputPath(true);
     this.render();
   }
 
@@ -218,10 +219,10 @@ export default class PathPrompt extends BasePrompt {
   resetCursor() {
     // Move the display cursor
     this.rl.output.unmute();
-    readline.cursorTo(this.rl.output, this.shell.getInputPath().length + 1);
+    readline.cursorTo(this.rl.output, this.shell.getInputPath(true).length + 1);
     this.rl.output.mute();
     // Move the internal cursor
-    this.rl.cursor = this.shell.getInputPath().length + 1;
+    this.rl.cursor = this.shell.getInputPath(true).length + 1;
   }
 
   /**
