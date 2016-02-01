@@ -14,6 +14,9 @@ const questions = [{
   multi: true,
   validate: function(answser) {
     return PathReference.exists(answser) ? true : "The path does not exist";
+  },
+  validateMulti: function(answers){
+    return answers.length > 0 ? true : "You must provide at least one path"
   }
 }];
 

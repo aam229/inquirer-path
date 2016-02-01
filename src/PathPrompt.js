@@ -22,14 +22,24 @@ export default class PathPrompt extends BasePrompt {
    */
   constructor(...args) {
     super(...args);
+    /** @private */
+    this.opt = Object.assign({
+      filter: (value) => value,
+      validate: () => true,
+      validateMulti: () => true,
+      when: () => true
+    }, this.opt);
+
     const cwd = this.opt.cwd || this.opt.default || path.sep;
 
     /** @private */
-    this.originalSIGINTListeners = this.rl.listeners('SIGINT');
+    this.cancelCount = 0;
+    /** @private */
+    this.originalListeners = {SIGINT: this.rl.listeners('SIGINT')};
+    /** @private */
+    this.listeners = [];
     /** @private */
     this.answer = (this.opt.multi) ? [] : null;
-    /** @private */
-    this.finished = false;
     /** @private */
     this.shell = new ShellPathAutocomplete(cwd || process.cwd(), this.opt.directoryOnly);
     /** @private */
@@ -38,6 +48,10 @@ export default class PathPrompt extends BasePrompt {
     this.state = {
       selectionActive: false
     };
+
+    this.onSubmit = this.onSubmit.bind(this);
+    this.onCancel = this.onCancel.bind(this);
+    this.onKeyPress = this.onKeyPress.bind(this);
 
     this.rl.removeAllListeners('SIGINT');
   }
@@ -52,75 +66,120 @@ export default class PathPrompt extends BasePrompt {
     /** @private */
     this.done = cb;
 
-    // TODO: This rx logic seems overly complicated for no good reason. Look into it.
-    const submit = rx.Observable.fromEvent(this.rl, 'line')
-      // Submit only if there is no active directoryChildren
-      .filter(() => !this.shell.hasSelectedPath())
-      .map(() => path.resolve(this.shell.getInputPathReference().getPath()));
-
-    const validation = submit.flatMap((value) => {
-      return rx.Observable.create((observer) => {
-        runAsync(this.opt.validate, (isValid) => {
-          observer.onNext({ isValid: isValid, value });
-          observer.onCompleted();
-        }, value, this.answers);
-      });
-    }).share();
-
-    const success = validation
-      .filter((state) => state.isValid === true)
-      .takeWhile(() => !this.finished);
-
-    const error = validation
-      .filter((state) => state.isValid !== true)
-      .takeWhile(() => !this.finished);
-
-    success.forEach((state) => this.onSuccess(state));
-    error.forEach((state) => this.onError(state));
-
-    rx.Observable.fromEvent(this.rl, 'SIGINT', (value, key) => ({ value: value, key: key || {} }))
-      .takeWhile(() => !this.finished)
-      .forEach((...args) => {
-        if (this.shell.hasSelectedPath()) {
-          this.state.selectionActive = false;
-          this.shell.resetSelectPotentialPath();
-        } else if (this.opt.multi) {
-          this.onFinish();
-        } else {
-          this.originalSIGINTListeners.forEach((listener) => listener(...args));
-        }
-      });
-
-    rx.Observable.fromEvent(this.rl.input, 'keypress', (value, key) => ({ value: value, key: key || {} }))
-      .takeWhile(() => !this.finished)
-      // Do not trigger the key press event for a submission
-      .filter((input) => input.key.name !== ENTER_KEY || this.shell.hasSelectedPath())
-      // Analyze the key pressed and rerender
-      .forEach((input) => this.onKeypress(input));
+    this.rl.addListener('line', this.onSubmit);
+    this.rl.addListener('SIGINT', this.onCancel);
+    this.rl.input.addListener('keypress', this.onKeyPress);
 
     this.render();
     return this;
   }
 
   /**
-   * Handles validation errors.
-   * @param state
+   * Hanldles keyPress events.
+   * @param {Object} value - The string representing the pressed key
+   * @param {Object} key - The information about the key pressed
    */
-  onError(state) {
+  onKeyPress(value, key = {}) {
+    if(key.ctrl){
+      return;
+    }
+    this.cancelCount = 0;
+    switch (key.name) {
+      case TAB_KEY:
+        this.shell.refresh();
+        if (this.shell.hasCommonPotentialPath()) {
+          this.state.selectionActive = false;
+          this.shell.setInputPath(this.shell.getCommonPotentialPath());
+        } else if (! this.state.selectionActive) {
+          this.state.selectionActive = true;
+        } else {
+          this.shell.selectNextPotentialPath(!key.shift);
+        }
+        this.resetCursor();
+        break;
+      case ENTER_KEY:
+        if (this.state.selectionActive) {
+          this.shell.setInputPath(this.shell.getSelectedPath());
+          this.state.selectionActive = false;
+        } else if (!this.shell.hasSelectedPath()) {
+          // Let the onSubmit handler take care of that.
+          return;
+        }
+        this.resetCursor();
+        break;
+      default:
+        this.state.selectionActive = false;
+        this.shell.setInputPath(this.rl.line);
+        break;
+    }
+    // Avoid polluting the line value with whatever new characters the action key added to the line
+    this.rl.line = this.shell.getInputPath(true);
+    this.render();
+  }
+
+  /**
+   * Event handler for when the user submits the current input.
+   * It is triggered when the enter key is pressed.
+   */
+  onSubmit() {
+    // Let the onKeypress handler take care of that one.
+    if(this.shell.hasSelectedPath()){
+      return;
+    }
+    this.cancelCount = 0;
+    const input = path.resolve(this.shell.getInputPathReference().getPath());
+    runAsync(this.opt.validate, (isValid) => {
+      if (isValid === true) {
+        this.onSuccess(input);
+      } else {
+        this.onError(isValid);
+      }
+    }, input, this.answers);
+  }
+
+  /**
+   * Event handler for cancel events (SIGINT)
+   */
+  onCancel(...args) {
+    if (this.shell.hasSelectedPath()) {
+      // Cancel the path selection
+      this.state.selectionActive = false;
+      this.shell.resetSelectPotentialPath();
+    } else if (this.opt.multi && this.cancelCount < 1) {
+      // Validate the multi path input
+      runAsync(this.opt.validateMulti, (isValid) => {
+        if (isValid === true) {
+          this.onFinish();
+        } else {
+          this.cancelCount++;
+          this.onError(isValid);
+        }
+      }, this.answer, this.answers);
+    } else {
+      // Exit out
+      this.cleanup();
+      this.originalListeners.SIGINT.forEach((listener) => listener(...args));
+    }
+  }
+
+  /**
+   * Handles validation errors.
+   * @param {string} error - The validation error
+   */
+  onError(error) {
     // Keep the state
     this.rl.line = this.shell.getInputPath(true);
-
     this.resetCursor();
-    this.renderError(state.isValid);
+    this.renderError(error);
   }
 
   /**
    * Handles a successful submission.
-   * @param state
+   * @param {string} value - The resolved input path
    */
-  onSuccess(state) {
+  onSuccess(value) {
     // Filter the value based on the options.
-    this.filter(state.value, (filteredValue) => {
+    this.filter(value, (filteredValue) => {
       // Re-render prompt with the final value
       this.render(filteredValue);
 
@@ -153,51 +212,9 @@ export default class PathPrompt extends BasePrompt {
    * Handles the finish event
    */
   onFinish() {
-    this.finished = true;
-    // Put the listeners back on to SIGINT
-    this.originalSIGINTListeners.forEach((listener) => {
-      this.rl.addListener('SIGINT', listener);
-    });
-
+    this.cleanup();
     this.screen.done();
     this.done(this.answer);
-  }
-
-  /**
-   * Hanldles keyPress events.
-   * @param {Object} input - The input event
-   * @param {Object} input.key - The key that was pressed
-   * @param {string} input.value - The key value
-   */
-  onKeypress(input) {
-    switch (input.key.name) {
-      case TAB_KEY:
-        this.shell.refresh();
-        if (this.shell.hasCommonPotentialPath()) {
-          this.state.selectionActive = false;
-          this.shell.setInputPath(this.shell.getCommonPotentialPath());
-        } else if (! this.state.selectionActive) {
-          this.state.selectionActive = true;
-        } else {
-          this.shell.selectNextPotentialPath(!input.key.shift);
-        }
-        this.resetCursor();
-        break;
-      case ENTER_KEY:
-        if (this.state.selectionActive) {
-          this.shell.setInputPath(this.shell.getSelectedPath());
-          this.state.selectionActive = false;
-        }
-        this.resetCursor();
-        break;
-      default:
-        this.state.selectionActive = false;
-        this.shell.setInputPath(this.rl.line);
-        break;
-    }
-    // Avoid polluting the line value with whatever new characters the action key added to the line
-    this.rl.line = this.shell.getInputPath(true);
-    this.render();
   }
 
   /**
@@ -285,6 +302,21 @@ export default class PathPrompt extends BasePrompt {
       max = length;
     }
     return items.slice(min, max);
+  }
+
+  /**
+   * Unregister the local event handlers and reregister the ones that were
+   * removed.
+   */
+  cleanup(){
+    Object.keys(this.originalListeners).forEach((eventName) => {
+      this.originalListeners[eventName].forEach((listener) => {
+        this.rl.addListener(eventName, listener);
+      })
+    });
+    this.rl.removeListener('line', this.onSubmit);
+    this.rl.removeListener('SIGINT', this.onCancel);
+    this.rl.input.removeListener('keypress', this.onKeyPress);
   }
 }
 
