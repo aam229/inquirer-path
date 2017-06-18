@@ -1,10 +1,17 @@
-require('./transpile');
-
-const path = require('path');
+const fs = require('fs');
 const inquirer = require('inquirer');
+const PathPrompt = require('../lib').PathPrompt;
 
-const paths = require('../src/');
-const PathReference = require('../src/PathReference');
+inquirer.registerPrompt('path', PathPrompt);
+
+function exists(path) {
+  try {
+    fs.accessSync(path, fs.R_OK);
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
 
 const questions = [{
   type: 'path',
@@ -12,14 +19,14 @@ const questions = [{
   message: 'Enter a path',
   default: process.cwd(),
   multi: true,
-  validate: function(answser) {
-    return PathReference.exists(answser) ? true : "The path does not exist";
+  validate: (answser) => {
+    if (typeof answer === 'string') {
+      return exists(answser) ? true : 'The path does not exist';
+    }
+    return answser.length > 0 ? true : 'You must provide at least one path';
   },
-  validateMulti: function(answers){
-    return answers.length > 0 ? true : "You must provide at least one path"
-  }
 }];
 
-inquirer.prompt(questions, function(result) {
-  console.log(result.path);
-});
+inquirer.prompt(questions)
+  .then(result => console.log(result.path))
+  .catch(err => console.error(err.stack));

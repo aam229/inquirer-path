@@ -50,23 +50,21 @@ You can see additional examples in the [examples](./examples) folder.
 
 ## Development
 
-This project uses the following tools:
- 
-- [babel](https://babeljs.io/) - compile the es6 code into valid es5 code. 
-- [esdocs](https://esdoc.org/) - automatically generate documention. 
-- [eslint](http://eslint.org/) - validate and fix the code format.
+The API documentation can be found [here](./DOCUMENTATION.md)
 
 This project defines the following `npm` scripts to help you during development:
 
 - `compile` - Compile the code in `./src` and output it into `./lib`
+- `compile-watch` - Watch the `./src` folder. When a change occurs, the code is recompiled and the docs are regenerated.
 - `lint` - Run eslint to validate the code formatting
 - `fix-lint` - Fix the simple eslint error
-- `docs` - Run esdoc to generate documentation into `./docs`
-- `watch` - Watch the `./src` folder. When a change occurs, the code is recompiled and the docs are regenerated. 
+- `docs` - Generate the html documentation to `./docs` 
+- `docs-watch` - Create a documentation server at localhost:4001
+- `docs-md` - Generate DOCUMENTATION.md file 
 
 ### Debugging
 
-This project is a real pain to debug. Using `console.log` messes up the interface and [Webstorm](https://www.jetbrains.com/webstorm/) does not play nice with user input. The best way I have found so far is to use `console.error` and redirect the error stream to a file. I have one terminal in which I run `node yourscript.js 2> debug.txt` and another in which I observe the output using `tail debug.txt`. I would be very opened to better suggestions.
+This project is a real pain to debug. Using `console.log` messes up the interface and [Webstorm](https://www.jetbrains.com/webstorm/) does not play nice with user input. The best way I have found so far is to use `console.error` and redirect the error stream to a file. I have one terminal in which I run `node yourscript.js 2> debug.txt` and another in which I observe the output using `tail -f debug.txt`. I'm definitely opened to better suggestions.
 
 
 

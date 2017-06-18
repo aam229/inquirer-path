@@ -1,7 +1,6 @@
 .idea/
+docs/
 node_modules/
-debug.txt
 npm-debug.log
 .DS_Store
-docs/
 lib/

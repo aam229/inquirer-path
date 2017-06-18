@@ -1,321 +1,274 @@
-import path from 'path';
+// @flow
 import inquirer from 'inquirer';
-import chalk from 'chalk';
-import readline from 'readline';
 import runAsync from 'run-async';
 import BasePrompt from 'inquirer/lib/prompts/base';
 
-import ShellPathAutocomplete from './ShellPathAutocomplete';
+import PathAutocomplete from './PathAutocomplete';
+import PathPromptRenderer from './PathPromptRenderer';
 
 const TAB_KEY = 'tab';
 const ENTER_KEY = 'return';
-const RANGE_SIZE = 5;
+const ESCAPE_KEY = 'escape';
+
+/* eslint-disable no-undef */
+declare type EventCallback = () => void;
+declare type KeyPressEvent$Value = string;
+declare type KeyPressEvent$Key = {
+  name: string,
+  ctrl: boolean,
+  meta: boolean,
+  shift: boolean
+};
+/* eslint-enable no-undef */
 
 /**
- * An {@link Inquirer} prompt for a single path. It supports auto completing paths similarly to zsh.
+ * An Inquirer prompt for a one or more file system path. It supports autocompletion
+ * similarly to zshell.
+ * @param {object} question
+ * @param {string} question.name The name to use when storing the answer in the answers hash.
+ * @param {string} question.message The message to display when prompting the user for a path.
+ * @param {string} [question.cwd=process.cwd()] The default working directory from which
+ * relative paths are resolved. It is also the default value.
+ * @param {string} [question.default=process.cwd()] Same as question.cwd
+ * @param {boolean} [question.multi=false] If set to true, the user can enter multiple paths
+ * @param {boolean} [question.directoryOnly=false] If set to true, the user can only enter paths to
+ * directories
+ * @param {function} [question.validate]  Receive the user input and should return true if the value
+ * is valid or an error message (String) otherwise. If false is returned, a default error message is
+ * provided. If question.multi is true, it is called for each path entered by the user.
+ * @param {function} [question.validateMulti] If question.multi is set to true, it is called once
+ * the question has been answered. It should return true if the value is valid or an error message
+ * (String) otherwise.
+ * @param {function} [question.filter] Receive the user input and return the filtered value to be
+ * used inside the program. The value returned will be added to the Answers hash.
+ * @param {function} [question.when] Receive the current user answers hash and should return true
+ * or false depending on whether or not this question should be asked. The value can also be a
+ * simple boolean..
+ * @param rl An instance of readline.Interface
+ * @param answers The answers provided by the user to other prompts
  */
 export default class PathPrompt extends BasePrompt {
-  /**
-   * Create a new prompt instance
-   * @param args
-   */
-  constructor(...args) {
-    super(...args);
-    /** @private */
-    this.opt = Object.assign({
-      filter: (value) => value,
-      validate: () => true,
-      validateMulti: () => true,
-      when: () => true
-    }, this.opt);
+  opt: {
+    name: string,
+    message: string,
+    default: string,
+    multi: boolean,
+    validate: (path: string) => boolean,
+    filter: (path: string) => any,
+    when: (answers: {}) => boolean,
+    [string]: any
+  };
+  listeners: {
+    SIGINT: EventCallback[]
+  };
+  bindedOnExit: () => void;
+  bindedOnKeyPress: (value: KeyPressEvent$Value, key: KeyPressEvent$Key) => void;
+  autocomplete: PathAutocomplete;
+  renderer: PathPromptRenderer;
+  paths: string[];
+  answerCallback: (value: string | string[]) => void;
+  isTryingExit: boolean;
 
-    const cwd = this.opt.cwd || this.opt.default || path.sep;
+  constructor(
+    question: {
+      name: string,
+      message: string,
+      cwd?: string,
+      multi?: boolean,
+      directoryOnly?: boolean,
+      default?: string,
+      validate?: (path: string) => boolean,
+      filter?: (path: string) => any,
+      when?: (answers: {}) => boolean,
+      [string]: any
+    },
+    rl: ReadLineInterface,
+    answers: {},
+  ) {
+    super(question, rl, answers);
 
-    /** @private */
-    this.cancelCount = 0;
-    /** @private */
-    this.originalListeners = { SIGINT: this.rl.listeners('SIGINT') };
-    /** @private */
-    this.listeners = [];
-    /** @private */
-    this.answer = (this.opt.multi) ? [] : null;
-    /** @private */
-    this.shell = new ShellPathAutocomplete(cwd || process.cwd(), this.opt.directoryOnly);
-    /** @private */
-    this.opt.default = this.shell.getWorkingDirectory().getName();
-    /** @private */
-    this.state = {
-      selectionActive: false
+    // bind event listeners
+    this.bindedOnExit = this.onExit.bind(this);
+    this.bindedOnKeyPress = this.onKeyPress.bind(this);
+
+    this.paths = [];
+    this.autocomplete = new PathAutocomplete(
+      question.cwd || question.default || process.cwd(),
+      question.directoryOnly,
+    );
+    this.renderer = new PathPromptRenderer(
+      this.rl,
+      this.screen,
+      this.autocomplete,
+      this.opt.message,
+    );
+    this.answerCallback = () => {};
+    this.isTryingExit = false;
+    this.listeners = {
+      SIGINT: [],
     };
-
-    this.onSubmit = this.onSubmit.bind(this);
-    this.onCancel = this.onCancel.bind(this);
-    this.onKeyPress = this.onKeyPress.bind(this);
-
-    this.rl.removeAllListeners('SIGINT');
   }
 
   /**
-   * Runs the prompt.
-   * @param {function} cb - A callback to call once the prompt has been answered successfully
-   * @returns {PathPrompt}
-   * @private
+   * Runs the path prompt.
+   * @param callback - Called when the prompt has been answered successfully
+   * @returns
      */
-  _run( cb ) {
-    /** @private */
-    this.done = cb;
+  _run(callback: (value: string | string[]) => void): PathPrompt {
+    this.answerCallback = callback;
+    // backup event listeners so we can rebind them later
+    this.listeners.SIGINT = this.rl.listeners('SIGINT');
+    this.rl.removeAllListeners('SIGINT');
 
-    this.rl.addListener('line', this.onSubmit);
-    this.rl.addListener('SIGINT', this.onCancel);
-    this.rl.input.addListener('keypress', this.onKeyPress);
-
-    this.render();
+    this.rl.addListener('SIGINT', this.bindedOnExit);
+    this.rl.input.addListener('keypress', this.bindedOnKeyPress);
+    this.renderer.render();
     return this;
   }
 
   /**
-   * Hanldles keyPress events.
-   * @param {Object} value - The string representing the pressed key
-   * @param {Object} key - The information about the key pressed
+   * Handle the keyPress events and update the @{link PathAutocomplete} state
+   * accordingly.
+   * @param value The string value of the keyboard entry
+   * @param key Information about the name of the key and whether other special
+   * keys were pressed at the same time.
    */
-  onKeyPress(value, key = {}) {
+  onKeyPress(
+    value: KeyPressEvent$Value,
+    key: KeyPressEvent$Key,
+  ) {
     if (key.ctrl) {
       return;
     }
-    this.cancelCount = 0;
+    this.isTryingExit = false;
     switch (key.name) {
       case TAB_KEY:
-        this.shell.refresh();
-        if (this.shell.hasCommonPotentialPath()) {
-          this.state.selectionActive = false;
-          this.shell.setInputPath(this.shell.getCommonPotentialPath());
-        } else if (! this.state.selectionActive) {
-          this.state.selectionActive = true;
-        } else {
-          this.shell.selectNextPotentialPath(!key.shift);
-        }
-        this.resetCursor();
+        this.autocomplete.nextMatch(!key.shift);
+        this.renderer.render();
         break;
       case ENTER_KEY:
-        if (!this.shell.hasSelectedPath()) {
-          // Let the onSubmit handler take care of that.
-          return;
-        }
-        this.shell.setInputPath(this.shell.getSelectedPath());
-        this.state.selectionActive = false;
-        this.resetCursor();
+        this.onEnterPressed();
+        break;
+      case ESCAPE_KEY:
+        this.onEscapePressed();
         break;
       default:
-        this.state.selectionActive = false;
-        this.shell.setInputPath(this.rl.line);
+        this.autocomplete.setPath(this.rl.line);
+        this.renderer.render();
         break;
     }
-    // Avoid polluting the line value with whatever new characters the action key added to the line
-    this.rl.line = this.shell.getInputPath(true);
-    this.render();
   }
 
   /**
-   * Event handler for when the user submits the current input.
-   * It is triggered when the enter key is pressed.
+   * Select the current match or submit the answer
    */
-  onSubmit() {
-    // Let the onKeypress handler take care of that one.
-    if (this.shell.hasSelectedPath()) {
-      return;
+  onEnterPressed() {
+    if (this.autocomplete.getMatchIndex() !== -1) {
+      this.autocomplete.selectMatch();
+      this.renderer.render();
+    } else {
+      this.submitAnswer();
     }
-    this.cancelCount = 0;
-    const input = path.resolve(this.shell.getInputPathReference().getPath());
-    runAsync(this.opt.validate, (isValid) => {
-      if (isValid === true) {
-        this.onSuccess(input);
-      } else {
-        this.onError(isValid);
-      }
-    }, input, this.answers);
   }
 
   /**
-   * Event handler for cancel events (SIGINT)
+   * Cancel matching or submit the answer for a multi path prompt
    */
-  onCancel(...args) {
-    if (this.shell.hasSelectedPath()) {
-      // Cancel the path selection
-      this.state.selectionActive = false;
-      this.shell.resetSelectPotentialPath();
-    } else if (this.opt.multi && this.cancelCount < 1) {
-      // Validate the multi path input
-      runAsync(this.opt.validateMulti, (isValid) => {
-        if (isValid === true) {
-          this.onFinish();
-        } else {
-          this.cancelCount++;
-          this.onError(isValid);
-        }
-      }, this.answer, this.answers);
+  onEscapePressed() {
+    if (this.autocomplete.getMatchIndex() !== -1) {
+      this.autocomplete.cancelMatch();
+      this.renderer.render();
+    } else if (this.opt.multi) {
+      this.submitAnswer(true);
+    }
+  }
+
+  /**
+   * Event handler for cancel events (SIGINT). If the user is currently selecting a path,
+   * it causes the selection to be cancelled. If the prompt is a multi path prompt, it
+   * causes the question to be done. If none of these conditions are met, the event handlers
+   * are cleaned up and the regular SIGINT handlers are involved
+   */
+  onExit(...args: any[]) {
+    // Cancel the path selection
+    if (this.autocomplete.getMatchIndex() !== -1) {
+      this.autocomplete.cancelMatch();
+      this.renderer.render();
+    } else if (this.opt.multi && !this.isTryingExit) {
+      this.submitAnswer(true);
+      this.isTryingExit = true;
     } else {
       // Exit out
-      this.cleanup();
-      this.originalListeners.SIGINT.forEach((listener) => listener(...args));
+      this.restoreEventHandlers();
+      // Call the restored SIGINT callbacks manually
+      this.rl.listeners('SIGINT').forEach(listener => listener(...args));
     }
   }
 
   /**
-   * Handles validation errors.
-   * @param {string} error - The validation error
+   * Validate the answer and kill the prompt if it's either a single path
+   * prompt or a multiple path prompt and submitMulti is set to true.
+   * @param submitMulti If set to true, submit all answers
    */
-  onError(error) {
-    // Keep the state
-    this.rl.line = this.shell.getInputPath(true);
-    this.resetCursor();
-    this.renderError(error);
-  }
+  submitAnswer(submitMulti: boolean = false) {
+    const answer = this.opt.multi && submitMulti ?
+      this.paths :
+      this.autocomplete.getPath().getAbsolutePath();
 
-  /**
-   * Handles a successful submission.
-   * @param {string} value - The resolved input path
-   */
-  onSuccess(value) {
-    // Filter the value based on the options.
-    this.filter(value, (filteredValue) => {
-      // Re-render prompt with the final value
-      this.render(filteredValue);
+    const validate = runAsync(this.opt.validate);
+    const filter = runAsync(this.opt.filter);
 
-      if (this.opt.multi) {
-        // Add a new line to keep the rendered answer
-        this.rl.output.unmute();
-        this.rl.output.write('\n');
-        this.rl.output.mute();
-
-        // Reset the shell
-        this.shell.setInputPath('');
-        this.shell.resetSelectPotentialPath();
-
-        // Hide the selection if it was active
-        this.state = {
-          selectionActive: false
-        };
-        this.answer.push(filteredValue);
-
-        // Render the new prompt
-        this.render();
-      } else {
-        this.answer = filteredValue;
-        this.onFinish();
-      }
-    });
-  }
-
-  /**
-   * Handles the finish event
-   */
-  onFinish() {
-    this.cleanup();
-    this.screen.done();
-    this.done(this.answer);
-  }
-
-  /**
-   * Render the prompt
-   */
-  render(finalAnswer) {
-    const message = this.renderMessage(finalAnswer);
-    const bottom = finalAnswer ? '' : this.renderBottom();
-    this.screen.render(message, bottom);
-  }
-
-  /**
-   * Render errors during the prompt
-   * @param error
-   */
-  renderError(error) {
-    this.screen.render(this.renderMessage(), chalk.red('>> ') + error);
-  }
-
-  /**
-   * Reset the input cursor to the end of the line
-   */
-  resetCursor() {
-    // Move the display cursor
-    this.rl.output.unmute();
-    readline.cursorTo(this.rl.output, this.shell.getInputPath(true).length + 1);
-    this.rl.output.mute();
-    // Move the internal cursor
-    this.rl.cursor = this.shell.getInputPath(true).length + 1;
-  }
-
-  /**
-   * Render the message part of the prompt. The message includes the question and the current response.
-   * @returns {String}
-   */
-  renderMessage(finalAnswer) {
-    let message = this.getQuestion();
-    if (finalAnswer) {
-      message += chalk.cyan(finalAnswer);
-    } else {
-      message += this.shell.getInputPath(true);
-    }
-    return message;
-  }
-
-  /**
-   * Render the bottom part of the prompt. The bottom part contains all the possible paths.
-   * @returns {string}
-   */
-  renderBottom() {
-    if (!this.state.selectionActive) {
-      return '';
-    }
-    const potentialPaths = this.shell.getPotentialPaths();
-    const selectedPath = this.shell.getSelectedPath();
-    const selectedPathIndex = potentialPaths.indexOf(selectedPath);
-
-    return this.slice(potentialPaths, selectedPathIndex, RANGE_SIZE)
-      .map((potentialPath) => {
-        const suffix = (potentialPath.isDirectory() ? path.sep : '');
-        if (potentialPath === selectedPath) {
-          return chalk.black.bgWhite(potentialPath.getName() + suffix);
+    let promiseChain = validate(answer, this.answers, this.opt.multi ? this.paths : null)
+      .then((isValid) => {
+        if (isValid !== true) {
+          throw isValid;
         }
-        return (potentialPath.isDirectory() ? chalk.red : chalk.green)(potentialPath.getName()) + suffix;
+        return answer;
       })
-      .join('\n');
-  }
+      .then(filter);
 
-  /**
-   * Slice an array around a specific item so that it contains a specific number of elements.
-   * @param {Array<T>} items - The array of items which should be shortened
-   * @param itemIndex - The index of the item that should be included in the returned slice
-   * @param size - The desired size of the array to be returned
-   * @returns {Array<T>} An array with the number of elements specified by size.
-     */
-  slice(items, itemIndex, size) {
-    const length = items.length;
-    let min = itemIndex - Math.floor(size / 2);
-    let max = itemIndex + Math.ceil(size / 2);
-    if (min < 0) {
-      max = Math.min(length, max - min);
-      min = 0;
-    } else if (max >= length) {
-      min = Math.max(0, min - (max - length));
-      max = length;
+    if (!this.opt.multi) {
+      // Render the final path
+      promiseChain = promiseChain.then((finalAnswer) => {
+        this.renderer.render(finalAnswer);
+        return finalAnswer;
+      });
+    } else if (this.opt.multi && !submitMulti) {
+      // For a new path entry, render a fresh prompt
+      promiseChain = promiseChain.then((finalAnswer) => {
+        // Update the array keeping track of the answers
+        this.paths.push(finalAnswer);
+        // Create a new autocomplete instance for the new prompt
+        this.autocomplete = new PathAutocomplete(
+          this.autocomplete.getWorkingDirectory().getAbsolutePath(),
+          this.autocomplete.isDirectoryOnly(),
+        );
+        this.renderer.renderNewPrompt(finalAnswer, this.autocomplete);
+        return finalAnswer;
+      });
     }
-    return items.slice(min, max);
+    // Kill the prompt
+    if (!this.opt.multi || submitMulti) {
+      promiseChain = promiseChain.then((finalAnswer) => {
+        this.renderer.kill();
+        this.restoreEventHandlers();
+        this.answerCallback(finalAnswer);
+      });
+    }
+    promiseChain.catch(error => this.renderer.renderError(error));
   }
 
   /**
-   * Unregister the local event handlers and reregister the ones that were
-   * removed.
+   * Unregister the instance's event handlers and register global event
+   * handlers ones that were temporarily removed.
    */
-  cleanup() {
-    Object.keys(this.originalListeners).forEach((eventName) => {
-      this.originalListeners[eventName].forEach((listener) => {
+  restoreEventHandlers() {
+    this.rl.removeListener('SIGINT', this.bindedOnExit);
+    this.rl.input.removeListener('keypress', this.bindedOnExit);
+    Object.keys(this.listeners).forEach((eventName) => {
+      this.listeners[eventName].forEach((listener) => {
         this.rl.addListener(eventName, listener);
       });
     });
-    this.rl.removeListener('line', this.onSubmit);
-    this.rl.removeListener('SIGINT', this.onCancel);
-    this.rl.input.removeListener('keypress', this.onKeyPress);
   }
 }
-
-inquirer.prompt.registerPrompt('path', PathPrompt);
