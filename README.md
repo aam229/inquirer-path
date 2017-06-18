@@ -15,7 +15,7 @@ inquirer.prompt.registerPrompt('path', PathPrompt);
 
 ### Multi Path
 
-If the question's multi property is set to true, the prompt will ask multiple paths. In order to finish the prompt, the user must either send a SIGINT or hit the escape key.
+If the question's `multi` property is set to true, the prompt will indefinitely ask for more paths. In order to finalize the answer, the user must either send a SIGINT or hit the escape key. The last answer is discarded when the user exits the prompt
 
 ## Config
 
@@ -67,7 +67,7 @@ This project defines the following `npm` scripts to help you during development:
 
 ### Debugging
 
-This project is a real pain to debug. Using `console.log` messes up the interface and [Webstorm](https://www.jetbrains.com/webstorm/) does not play nice with user input. The best way I have found so far is to use `console.error` and redirect the error stream to a file. I have one terminal in which I run `node yourscript.js 2> debug.txt` and another in which I observe the output using `tail -f debug.txt`. I'm definitely opened to better suggestions.
+This project is a real pain to debug. Using `console.log` messes up the UI (and is often overriden by it) and the [Webstorm](https://www.jetbrains.com/webstorm/) debugger does not play nice with user input. The best way I have found so far is to use `console.error` and redirect the error stream to a file. I have one terminal in which I run `node yourscript.js 2> debug.txt` and another in which I observe the output using `tail -f debug.txt`. I'm definitely opened to better suggestions.
 
 
 
