@@ -40,6 +40,7 @@ const questions = [{
   default: process.cwd(),
 }];
 
+inquirer.registerPrompt('path', PathPrompt);
 inquirer.prompt(questions)
   .then((result) => console.log(result.path));
 ```
