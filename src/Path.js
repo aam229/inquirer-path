@@ -94,8 +94,7 @@ export default class Path {
     const dirname = path.dirname(this.relativePath);
     if (dirname === '.' && !this.relativePath.startsWith('./')) {
       return new Path(this.cwd);
-    }
-    else if (dirname === '/') {
+    } else if (dirname === '/') {
       return new Path(this.cwd, dirname);
     }
     return new Path(this.cwd, dirname + path.sep);

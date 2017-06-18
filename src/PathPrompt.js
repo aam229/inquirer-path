@@ -1,5 +1,4 @@
 // @flow
-import inquirer from 'inquirer';
 import runAsync from 'run-async';
 import BasePrompt from 'inquirer/lib/prompts/base';
 
