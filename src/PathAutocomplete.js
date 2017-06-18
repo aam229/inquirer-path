@@ -176,11 +176,8 @@ export default class PathAutocomplete {
     if (!directory.isExistingDirectory()) {
       return null;
     }
-    console.error(directory.getRelativePath());
     // For a directory, no need to filter on a prefix.
     const prefix = this.path.isDirectory() ? '' : this.path.getBaseName();
-
-    console.error(prefix);
     const matches = fs.readdirSync(directory.getAbsolutePath())
       // Filter on the base input name
       .filter(child => child.startsWith(prefix))

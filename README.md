@@ -63,7 +63,7 @@ This project defines the following `npm` scripts to help you during development:
 - `fix-lint` - Fix the simple eslint error
 - `docs` - Generate the html documentation to `./docs` 
 - `docs-watch` - Create a documentation server at localhost:4001
-- `docs-md` - Generate DOCUMENTATION.md file 
+- `docs-md` - Generate the DOCUMENTATION.md file 
 
 ### Debugging
 

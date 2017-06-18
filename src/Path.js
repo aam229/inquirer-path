@@ -87,7 +87,6 @@ export default class Path {
    * @return The directory containing this path
    */
   getDirectory(): Path {
-    console.error(this.getRelativePath(), path.dirname(this.relativePath));
     if (this.isDirectory()) {
       return this;
     }
