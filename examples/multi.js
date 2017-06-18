@@ -19,11 +19,16 @@ const questions = [{
   message: 'Enter a path',
   default: process.cwd(),
   multi: true,
-  validate: (answser) => {
+  validate: (answer, answers, paths) => {
     if (typeof answer === 'string') {
-      return exists(answser) ? true : 'The path does not exist';
+      if (paths.indexOf(answer) !== -1) {
+        return 'The path has already been selected';
+      } else if (!exists(answer)) {
+        return 'The path does not exist';
+      }
+      return true;
     }
-    return answser.length > 0 ? true : 'You must provide at least one path';
+    return answer.length > 0 ? true : 'You must provide at least one path';
   },
 }];
 

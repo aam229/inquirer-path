@@ -23,8 +23,7 @@ The path question supports the following options:
 - **default**: (String) Save as the **cwd** option.
 - **multi**: (Boolean) Set to true if the prompt should ask for multiple paths. If multi is set to true, the path entry can be stopped by sending the `SIGINT` signal (ctrl+C) 
 - **directoryOnly**: (Boolean) Set to true if the prompt should only autocomplete (or suggest) directories.
-- **validate**: (Function) Receive the user input and should return true if the value is valid, and an error message (String) otherwise. If false is returned, a default error message is provided. If **multi** is true, it is called for each path entered by the user.
-- **validateMulti**: (Function) If **multi** is set to true, it can be used to validate the list of paths entered by the user.
+- **validate**: (Function) Receive the user input and should return true if the value is valid, and an error message (String) otherwise. If false is returned, a default error message is provided. If **multi** is true, it is called for each path entered by the user as well as once the prompt finishes.
 - **filter**: (Function) Receive the user input and return the filtered value to be used inside the program. The value returned will be added to the Answers hash.
 - **when**: (Function, Boolean) Receive the current user answers hash and should return true or false depending on whether or not this question should be asked. The value can also be a simple boolean.
 
@@ -41,9 +40,8 @@ const questions = [{
   default: process.cwd(),
 }];
 
-inquirer.prompt(questions, function(result) {
-  console.log(result.path);
-});
+inquirer.prompt(questions)
+  .then((result) => console.log(result.path));
 ```
 
 You can see additional examples in the [examples](./examples) folder.
