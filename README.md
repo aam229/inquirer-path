@@ -13,6 +13,10 @@ import { PathPrompt } from 'inquirer-path';
 inquirer.prompt.registerPrompt('path', PathPrompt);
 ```
 
+### Multi Path
+
+If the question's multi property is set to true, the prompt will ask multiple paths. In order to finish the prompt, the user must either send a SIGINT or hit the escape key.
+
 ## Config
 
 The path question supports the following options:
