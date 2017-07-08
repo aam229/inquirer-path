@@ -3,7 +3,7 @@
   "description": "An Inquirer extension to support path questions",
   "author": "Alexandre Massonneau <aam229@cornell.edu> (http://github.com/aam229)",
   "license": "MIT",
-  "version": "1.0.0-beta2",
+  "version": "1.0.0-beta3",
   "repository": {
     "type": "git",
     "url": "https://github.com/aam229/inquirer-path.git"
@@ -18,7 +18,7 @@
     "docs": "documentation build -c documentation.yml -f html -o docs src/**",
     "docs-watch": "documentation serve --watch -c documentation.yml -f html src/**",
     "docs-md": "documentation build -c documentation.yml -f md -o DOCUMENTATION.md src/**",
-    "prepublish": "npm run compile && npm run lint && npm run docs-md"
+    "prepublish": "npm run compile && npm run lint"
   },
   "dependencies": {
     "chalk": "^1.1.3",

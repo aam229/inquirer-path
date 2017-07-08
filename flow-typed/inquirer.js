@@ -9,6 +9,7 @@ declare class BasePrompt {
   rl: ReadLineInterface;
   screen: ScreenManager;
   answers: {[key: string]: any};
+  status: string;
   opt: {
     name: string,
     message: string,

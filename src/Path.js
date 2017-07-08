@@ -35,7 +35,11 @@ export default class Path {
    * @returns True if the path is an existing file
    */
   isExistingFile(): boolean {
-    return this.exists() && fs.statSync(this.absolutePath).isFile();
+    try {
+      return fs.statSync(this.absolutePath).isFile();
+    } catch (error) {
+      return false;
+    }
   }
 
 
@@ -43,7 +47,11 @@ export default class Path {
    * @returns True if the path is an existing directory
    */
   isExistingDirectory(): boolean {
-    return this.exists() && fs.statSync(this.absolutePath).isDirectory();
+    try {
+      return fs.statSync(this.absolutePath).isDirectory();
+    } catch (error) {
+      return false;
+    }
   }
 
   /**
@@ -91,9 +99,9 @@ export default class Path {
       return this;
     }
     const dirname = path.dirname(this.relativePath);
-    if (dirname === '.' && !this.relativePath.startsWith('./')) {
+    if (dirname === '.' && !this.relativePath.startsWith(`.${path.sep}`)) {
       return new Path(this.cwd);
-    } else if (dirname === '/') {
+    } else if (dirname.endsWith(path.sep)) {
       return new Path(this.cwd, dirname);
     }
     return new Path(this.cwd, dirname + path.sep);
