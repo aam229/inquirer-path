@@ -2,9 +2,6 @@
   "passPerPreset": true,
   "presets": [
     {
-      "plugins": [ "transform-runtime" ]
-    },
-    {
       "passPerPreset": false,
       "presets": [ "es2015", "stage-0", "flow" ]
     }
