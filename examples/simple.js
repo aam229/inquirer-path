@@ -13,13 +13,31 @@ function exists(path) {
   }
 }
 
-const questions = [{
-  type: 'path',
-  name: 'path',
-  message: 'Enter a path',
-  default: process.cwd(),
-  validate: answer => exists(answer) ? true : 'The path does not exist',
-}];
+const questions = [
+  {
+    type: 'rawlist',
+    name: 'list',
+    message: 'Pick an option',
+    choices: ['hello', 'world'],
+  },
+  {
+    type: 'path',
+    name: 'path',
+    message: 'Enter a path',
+    default: process.cwd(),
+    validate: answer => exists(answer) ? true : 'The path does not exist',
+  },
+  {
+    type: 'confirm',
+    name: 'conf1',
+    message: 'Confirm once',
+  },
+  {
+    type: 'confirm',
+    name: 'conf2',
+    message: 'Confirm twice',
+  }
+];
 
 inquirer.prompt(questions)
   .then(result => console.log(result.path))

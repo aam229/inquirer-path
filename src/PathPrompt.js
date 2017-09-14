@@ -136,14 +136,19 @@ export default class PathPrompt extends BasePrompt {
     value: KeyPressEvent$Value,
     key: KeyPressEvent$Key,
   ) {
-    if (key.ctrl) {
+    if (key && key.ctrl) {
       return;
     }
+    const keyName = key ? key.name : value;
     this.isTryingExit = false;
-    switch (key.name) {
+    switch (keyName) {
       case TAB_KEY:
-        this.autocomplete.nextMatch(!key.shift);
-        this.renderer.render();
+        try {
+          this.autocomplete.nextMatch(!key.shift);
+          this.renderer.render();
+        } catch (err) {
+          this.renderer.renderError(err.message);
+        }
         break;
       case ENTER_KEY:
         this.onEnterPressed();
@@ -249,6 +254,7 @@ export default class PathPrompt extends BasePrompt {
     // Kill the prompt
     if (!this.opt.multi || submitMulti) {
       promiseChain = promiseChain.then((finalAnswer) => {
+        this.status = 'answered';
         this.renderer.kill();
         this.restoreEventHandlers();
         this.answerCallback(finalAnswer);
@@ -263,7 +269,7 @@ export default class PathPrompt extends BasePrompt {
    */
   restoreEventHandlers() {
     this.rl.removeListener('SIGINT', this.bindedOnExit);
-    this.rl.input.removeListener('keypress', this.bindedOnExit);
+    this.rl.input.removeListener('keypress', this.bindedOnKeyPress);
     Object.keys(this.listeners).forEach((eventName) => {
       this.listeners[eventName].forEach((listener) => {
         this.rl.addListener(eventName, listener);

@@ -44,8 +44,10 @@ export default class PathPromptRenderer {
     const message = this.buildMainContent(finalAnswer);
     const bottom = finalAnswer ? '' : this.buildBottomContent();
     this.screen.render(message, bottom);
-    // Reset the line value to match the state of the PathAutocomplete instance
-    this.resetCursor();
+    if (!finalAnswer) {
+      // Reset the line value to match the state of the PathAutocomplete instance
+      this.resetCursor();
+    }
   }
 
   /**
