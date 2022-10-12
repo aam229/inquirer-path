@@ -1,6 +1,7 @@
 // @flow
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 
 /**
  * A system path that may or may not exist. If the path points to
@@ -16,7 +17,11 @@ export default class Path {
   constructor(cwd: string | Path, relativePath: string = '') {
     this.cwd = cwd instanceof Path ? cwd.getAbsolutePath() : cwd;
     this.relativePath = relativePath;
-    this.absolutePath = path.resolve(this.cwd, relativePath);
+    if (relativePath.startsWith('~')) {
+      this.absolutePath = path.resolve(os.homedir(), `./${relativePath.slice(1)}`);
+    } else {
+      this.absolutePath = path.resolve(this.cwd, relativePath);
+    }
   }
 
   /**
